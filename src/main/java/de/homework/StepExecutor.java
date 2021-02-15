@@ -1,5 +1,6 @@
 package de.homework;
 
+import java.util.Optional;
 import java.util.function.Function;
 
 import io.vavr.collection.LinkedHashMap;
@@ -19,13 +20,18 @@ public class StepExecutor<T, P> {
         Either<P, T> result = null;
 
         while (contextHolder.hasNext()) {
-            if (result != null && result.isLeft()) {
-                return result;
-            }
-
             final Step<T, P> step = contextHolder.next();
             result = step.run(result == null ? input : result.get());
             contextHolder.updateStepContext(step, result, 0);
+
+            if (result.isLeft()) {
+                if (step.isRecoverable()) {
+                    Either<P, T> recoverResult = step.recover(result.getLeft());
+                    contextHolder.updateStepContext(step, result, recoverResult, 0);
+                }
+
+                return result;
+            }
         }
 
         return result;
@@ -38,6 +44,15 @@ public class StepExecutor<T, P> {
         public Builder<T, P> addStep(Function<T, Either<P, T>> nextStep) {
             final Step<T, P> step = new Step<>(nextStep);
             this.contextMap = this.contextMap.put(step, new StepContext<>(step));
+
+            return this;
+        }
+
+        public Builder<T, P> addStep(Function<T, Either<P, T>> nextStep, Function<P, Either<P, T>> recover) {
+            final RecoveryStep<P, T> recoverStep = new RecoveryStep<>(recover);
+            final Step<T, P> step = new Step<>(nextStep, Optional.of(recoverStep));
+            this.contextMap = this.contextMap.put(step, new StepContext<>(step));
+
             return this;
         }
 

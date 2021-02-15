@@ -7,34 +7,48 @@ import io.vavr.control.Either;
 
 public class StepContext<T, P> {
 
-    private final Step<T, P> in;
+    private final Step<T, P> input;
 
-    private final Optional<Either<P, T>> out;
+    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+    private final Optional<Either<P, T>> output;
+
+    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+    private final Optional<Either<P, T>> recoveryOutput;
 
     private final int timeTakenNanos;
 
     String functionName;
 
-    public StepContext(Step<T, P> in) {
-        this.in = in;
-        this.out = Optional.empty();
+    public StepContext(Step<T, P> input) {
+        this.input = input;
+        this.output = Optional.empty();
+        this.recoveryOutput = Optional.empty();
         this.timeTakenNanos = 0;
-        this.functionName = in.getAction().getClass().getSimpleName();
+        this.functionName = input.getAction().getClass().getSimpleName();
     }
 
-    public StepContext(Step<T, P> in, Either<P, T> out, int timeTakenNanos) {
-        this.in = in;
-        this.out = Optional.of(out);
+    public StepContext(Step<T, P> input, Either<P, T> output, int timeTakenNanos) {
+        this.input = input;
+        this.output = Optional.of(output);
+        this.recoveryOutput = Optional.empty();
         this.timeTakenNanos = timeTakenNanos;
-        this.functionName = in.getAction().getClass().getSimpleName();
+        this.functionName = input.getAction().getClass().getSimpleName();
     }
 
-    public Step<T, P> getIn() {
-        return in;
+    public StepContext(Step<T, P> input, Either<P, T> output, Either<P, T> recoveryOutput, int timeTakenNanos) {
+        this.input = input;
+        this.output = Optional.of(output);
+        this.recoveryOutput = Optional.of(recoveryOutput);
+        this.timeTakenNanos = timeTakenNanos;
+        this.functionName = input.getAction().getClass().getSimpleName();
     }
 
-    public Optional<Either<P, T>> getOut() {
-        return out;
+    public Step<T, P> getInput() {
+        return input;
+    }
+
+    public Optional<Either<P, T>> getOutput() {
+        return output;
     }
 
     public int getTimeTakenNanos() {
@@ -50,21 +64,11 @@ public class StepContext<T, P> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         StepContext<?, ?> that = (StepContext<?, ?>) o;
-        return timeTakenNanos == that.timeTakenNanos && Objects.equals(in, that.in) && Objects.equals(out, that.out) && Objects.equals(functionName, that.functionName);
+        return timeTakenNanos == that.timeTakenNanos && Objects.equals(input, that.input) && Objects.equals(output, that.output) && Objects.equals(recoveryOutput, that.recoveryOutput) && Objects.equals(functionName, that.functionName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(in, out, timeTakenNanos, functionName);
-    }
-
-    @Override
-    public String toString() {
-        return "StepContext{" +
-                "in=" + in +
-                ", out=" + out +
-                ", timeTakenNanos=" + timeTakenNanos +
-                ", functionName='" + functionName + '\'' +
-                '}';
+        return Objects.hash(input, output, recoveryOutput, timeTakenNanos, functionName);
     }
 }

@@ -26,6 +26,8 @@ class StepExecutorTest {
     Function<Document, Either<Problem, Document>> fun2 = mock(Function.class);
     Function<Document, Either<Problem, Document>> fun3 = mock(Function.class);
     Function<Document, Either<Problem, Document>> fun4 = mock(Function.class);
+    Function<Problem, Either<Problem, Document>> fun5 = mock(Function.class);
+    Function<Problem, Either<Problem, Document>> fun6 = mock(Function.class);
 
     @BeforeEach
     void setUp() {
@@ -35,6 +37,8 @@ class StepExecutorTest {
         doAnswer(answer -> Right(answer.getArgument(0))).when(fun2).apply(any());
         doAnswer(answer -> Right(answer.getArgument(0))).when(fun3).apply(any());
         doAnswer(answer -> Right(answer.getArgument(0))).when(fun4).apply(any());
+        doAnswer(answer -> Right(answer.getArgument(0))).when(fun5).apply(any());
+        doAnswer(answer -> Left(answer.getArgument(0))).when(fun6).apply(any());
     }
 
     @Test
@@ -78,7 +82,7 @@ class StepExecutorTest {
 
     @Test
     @SuppressWarnings("UnusedAssignment")
-    void whenSecondFunctionInitiallyReturnLeftAndThenRecover_skipsAllInitiallyExecutedSteps() {
+    void whenFunctionsInitiallyReturnLeftAndThenRetry_duringRetrySkipsAllSuccessfullyExecutedSteps() {
         doReturn(Left(new Problem())).when(fun2).apply(any());
         doReturn(Left(new Problem())).when(fun3).apply(any());
 
@@ -100,5 +104,35 @@ class StepExecutorTest {
         inOrder.verify(fun1, times(1)).apply(any());
         inOrder.verify(fun2, times(2)).apply(any());
         inOrder.verify(fun3, times(3)).apply(any());
+    }
+
+    @Test
+    @SuppressWarnings("UnusedAssignment")
+    void whenFunctionReturnLeftAndThenRecover_recoveryOperationIsExecutedAfterEachFail() {
+        doReturn(Left(new Problem())).when(fun2).apply(any());
+        doReturn(Left(new Problem())).when(fun3).apply(any());
+
+        final StepExecutor<Document, Problem> stepExecutor = new StepExecutor.Builder<Document, Problem>()
+                .addStep(fun1)
+                .addStep(fun2)
+                .addStep(fun3, fun5)
+                .build();
+
+        Either<Problem, Document> result = stepExecutor.apply(new Document());
+        doReturn(Right(new Document())).when(fun2).apply(any());
+        result = stepExecutor.apply(new Document());
+        result = stepExecutor.apply(new Document());
+        doReturn(Right(new Document())).when(fun3).apply(any());
+        result = stepExecutor.apply(new Document());
+
+        assertThat(result.isRight()).isTrue();
+        InOrder inOrder = inOrder(fun1, fun2, fun3, fun5, fun3, fun5, fun3);
+        inOrder.verify(fun1, times(1)).apply(any());
+        inOrder.verify(fun2, times(2)).apply(any());
+        inOrder.verify(fun3, times(1)).apply(any());
+        inOrder.verify(fun5, times(1)).apply(any());
+        inOrder.verify(fun3, times(1)).apply(any());
+        inOrder.verify(fun5, times(1)).apply(any());
+        inOrder.verify(fun3, times(1)).apply(any());
     }
 }

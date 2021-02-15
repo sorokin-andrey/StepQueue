@@ -13,14 +13,18 @@ public class ContextHolder<T, P> implements Iterator<Step<T, P>> {
     }
 
     public Step<T, P> next() {
-        return this.contextMap.find(step -> step._2.getOut().isEmpty() || step._2.getOut().get().isLeft()).get()._1;
+        return this.contextMap.find(step -> step._2.getOutput().isEmpty() || step._2.getOutput().get().isLeft()).get()._1;
     }
 
     public boolean hasNext() {
-        return !this.contextMap.filter(step -> step._2.getOut().isEmpty() || step._2.getOut().get().isLeft()).isEmpty();
+        return !this.contextMap.filter(step -> step._2.getOutput().isEmpty() || step._2.getOutput().get().isLeft()).isEmpty();
     }
 
-    public void updateStepContext(Step<T, P> step, Either<P, T> out, int timeTakenNanos) {
-        this.contextMap = this.contextMap.put(step, new StepContext<>(step, out, timeTakenNanos));
+    public void updateStepContext(Step<T, P> step, Either<P, T> recoveryOutput, int timeTakenNanos) {
+        this.contextMap = this.contextMap.put(step, new StepContext<>(step, recoveryOutput, timeTakenNanos));
+    }
+
+    public void updateStepContext(Step<T, P> step, Either<P, T> output, Either<P, T> recoveryOutput, int timeTakenNanos) {
+        this.contextMap = this.contextMap.put(step, new StepContext<>(step, output, recoveryOutput, timeTakenNanos));
     }
 }
