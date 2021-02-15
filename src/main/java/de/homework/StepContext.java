@@ -1,22 +1,30 @@
 package de.homework;
 
-import io.vavr.control.Either;
-
 import java.util.Objects;
+import java.util.Optional;
+
+import io.vavr.control.Either;
 
 public class StepContext<T, P> {
 
     private final Step<T, P> in;
 
-    private final Either<P, T> out;
+    private final Optional<Either<P, T>> out;
 
     private final int timeTakenNanos;
 
     String functionName;
 
+    public StepContext(Step<T, P> in) {
+        this.in = in;
+        this.out = Optional.empty();
+        this.timeTakenNanos = 0;
+        this.functionName = in.getAction().getClass().getSimpleName();
+    }
+
     public StepContext(Step<T, P> in, Either<P, T> out, int timeTakenNanos) {
         this.in = in;
-        this.out = out;
+        this.out = Optional.of(out);
         this.timeTakenNanos = timeTakenNanos;
         this.functionName = in.getAction().getClass().getSimpleName();
     }
@@ -25,7 +33,7 @@ public class StepContext<T, P> {
         return in;
     }
 
-    public Either<P, T> getOut() {
+    public Optional<Either<P, T>> getOut() {
         return out;
     }
 

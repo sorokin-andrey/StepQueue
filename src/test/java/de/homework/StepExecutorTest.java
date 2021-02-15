@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-class StepQueueTest {
+class StepExecutorTest {
 
     static class Problem {
     }
@@ -39,14 +39,14 @@ class StepQueueTest {
 
     @Test
     public void whenAllFunctionsReturnRight_allFunctionsAreExecutedInRightOrder() {
-        final StepQueue<Document, Problem> stepQueue = new StepQueue.Builder<Document, Problem>()
+        final StepExecutor<Document, Problem> stepExecutor = new StepExecutor.Builder<Document, Problem>()
                 .addStep(fun1)
                 .addStep(fun2)
                 .addStep(fun3)
                 .addStep(fun4)
                 .build();
 
-        final Either<Problem, Document> result = stepQueue.apply(new Document());
+        final Either<Problem, Document> result = stepExecutor.apply(new Document());
 
         assertThat(result.isRight()).isTrue();
         InOrder inOrder = inOrder(fun1, fun2, fun3, fun4);
@@ -61,18 +61,44 @@ class StepQueueTest {
         doReturn(Left(new Problem())).when(fun2).apply(any());
         doReturn(Left(new Problem())).when(fun3).apply(any());
 
-        final StepQueue<Document, Problem> stepQueue = new StepQueue.Builder<Document, Problem>()
+        final StepExecutor<Document, Problem> stepExecutor = new StepExecutor.Builder<Document, Problem>()
                 .addStep(fun1)
                 .addStep(fun2)
                 .addStep(fun3)
                 .build();
 
-        final Either<Problem, Document> result = stepQueue.apply(new Document());
+        final Either<Problem, Document> result = stepExecutor.apply(new Document());
 
         assertThat(result.isLeft()).isTrue();
         InOrder inOrder = inOrder(fun1, fun2, fun3);
         inOrder.verify(fun1).apply(any());
         inOrder.verify(fun2).apply(any());
         inOrder.verify(fun3, never()).apply(any());
+    }
+
+    @Test
+    @SuppressWarnings("UnusedAssignment")
+    void whenSecondFunctionInitiallyReturnLeftAndThenRecover_skipsAllInitiallyExecutedSteps() {
+        doReturn(Left(new Problem())).when(fun2).apply(any());
+        doReturn(Left(new Problem())).when(fun3).apply(any());
+
+        final StepExecutor<Document, Problem> stepExecutor = new StepExecutor.Builder<Document, Problem>()
+                .addStep(fun1)
+                .addStep(fun2)
+                .addStep(fun3)
+                .build();
+
+        Either<Problem, Document> result = stepExecutor.apply(new Document());
+        doReturn(Right(new Document())).when(fun2).apply(any());
+        result = stepExecutor.apply(new Document());
+        result = stepExecutor.apply(new Document());
+        doReturn(Right(new Document())).when(fun3).apply(any());
+        result = stepExecutor.apply(new Document());
+
+        assertThat(result.isRight()).isTrue();
+        InOrder inOrder = inOrder(fun1, fun2, fun3);
+        inOrder.verify(fun1, times(1)).apply(any());
+        inOrder.verify(fun2, times(2)).apply(any());
+        inOrder.verify(fun3, times(3)).apply(any());
     }
 }
