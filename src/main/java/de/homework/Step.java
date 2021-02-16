@@ -13,23 +13,19 @@ public class Step<T, P> {
     private final Optional<RecoveryStep<P, T>> recoverStep;
 
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-    private Optional<Step<T, P>> nextStep;
+    private Optional<Step<T, P>> nextStep = Optional.empty();
 
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-    private Optional<StepContext<T, P>> context;
+    private Optional<StepContext<T, P>> context = Optional.empty();
 
     public Step(Function<T, Either<P, T>> action) {
         this.action = action;
         this.recoverStep = Optional.empty();
-        this.nextStep = Optional.empty();
-        this.context = Optional.empty();
     }
 
     public Step(Function<T, Either<P, T>> action, Function<P, Either<P, T>> recoverStep) {
         this.action = action;
         this.recoverStep = Optional.of(new RecoveryStep<>(recoverStep));
-        this.nextStep = Optional.empty();
-        this.context = Optional.empty();
     }
 
     public Either<P, T> run(T t) {
