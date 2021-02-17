@@ -1,26 +1,33 @@
 package de.homework;
 
-import io.vavr.control.Either;
+import static io.vavr.API.Left;
+import static io.vavr.API.Right;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
+import java.util.function.Function;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import java.util.function.Function;
+import de.homework.step.executor.AsyncStepExecutor;
+import de.homework.step.executor.StepExecutor;
+import de.homework.workflow.Workflow;
+import de.homework.workflow.WorkflowBuilder;
+import de.homework.workflow.WorkflowExecutor;
+import io.vavr.control.Either;
 
-import static io.vavr.API.Left;
-import static io.vavr.API.Right;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
-class StepExecutorTest {
-
-    static class Problem {
-    }
-
-    static class Document {
-    }
+class WorkflowTest {
 
     Function<Document, Either<Problem, Document>> fun1 = mock(Function.class);
     Function<Document, Either<Problem, Document>> fun2 = mock(Function.class);
@@ -28,6 +35,7 @@ class StepExecutorTest {
     Function<Document, Either<Problem, Document>> fun4 = mock(Function.class);
     Function<Problem, Either<Problem, Document>> fun5 = mock(Function.class);
     Function<Problem, Either<Problem, Document>> fun6 = mock(Function.class);
+    StepExecutor<Document, Problem> executor = spy(new AsyncStepExecutor<>());
 
     @BeforeEach
     void setUp() {
@@ -43,14 +51,15 @@ class StepExecutorTest {
 
     @Test
     public void whenAllFunctionsReturnRight_allFunctionsAreExecutedInRightOrder() {
-        final StepExecutor<Document, Problem> stepExecutor = new StepExecutor.Builder<Document, Problem>()
+        final Workflow<Document, Problem> workflow = new WorkflowBuilder<Document, Problem>()
                 .addStep(fun1)
                 .addStep(fun2)
                 .addStep(fun3)
                 .addStep(fun4)
                 .build();
 
-        final Either<Problem, Document> result = stepExecutor.apply(new Document());
+        final WorkflowExecutor<Problem, Document> workflowExecutor = new WorkflowExecutor<>(workflow);
+        final Either<Problem, Document> result = workflowExecutor.execute(new Document());
 
         assertThat(result.isRight()).isTrue();
         InOrder inOrder = inOrder(fun1, fun2, fun3, fun4);
@@ -61,17 +70,18 @@ class StepExecutorTest {
     }
 
     @Test
-    void whenAllFunctionsReturnLeftExceptFirstOne_skipsAfterFailure() {
+    public void whenAllFunctionsReturnLeftExceptFirstOne_skipsAfterFailure() {
         doReturn(Left(new Problem())).when(fun2).apply(any());
         doReturn(Left(new Problem())).when(fun3).apply(any());
 
-        final StepExecutor<Document, Problem> stepExecutor = new StepExecutor.Builder<Document, Problem>()
+        final Workflow<Document, Problem> workflow = new WorkflowBuilder<Document, Problem>()
                 .addStep(fun1)
                 .addStep(fun2)
                 .addStep(fun3)
                 .build();
 
-        final Either<Problem, Document> result = stepExecutor.apply(new Document());
+        final WorkflowExecutor<Problem, Document> workflowExecutor = new WorkflowExecutor<>(workflow);
+        final Either<Problem, Document> result = workflowExecutor.execute(new Document());
 
         assertThat(result.isLeft()).isTrue();
         InOrder inOrder = inOrder(fun1, fun2, fun3);
@@ -82,22 +92,24 @@ class StepExecutorTest {
 
     @Test
     @SuppressWarnings("UnusedAssignment")
-    void whenFunctionsInitiallyReturnLeftAndThenRetry_duringRetrySkipsAllSuccessfullyExecutedSteps() {
+    public void whenFunctionsInitiallyReturnLeftAndThenRetry_duringRetrySkipsAllSuccessfullyExecutedSteps() {
         doReturn(Left(new Problem())).when(fun2).apply(any());
         doReturn(Left(new Problem())).when(fun3).apply(any());
 
-        final StepExecutor<Document, Problem> stepExecutor = new StepExecutor.Builder<Document, Problem>()
+        final Workflow<Document, Problem> workflow = new WorkflowBuilder<Document, Problem>()
                 .addStep(fun1)
                 .addStep(fun2)
                 .addStep(fun3)
                 .build();
 
-        Either<Problem, Document> result = stepExecutor.apply(new Document());
+        final WorkflowExecutor<Problem, Document> workflowExecutor = new WorkflowExecutor<>(workflow);
+
+        Either<Problem, Document> result = workflowExecutor.execute(new Document());
         doReturn(Right(new Document())).when(fun2).apply(any());
-        result = stepExecutor.apply(new Document());
-        result = stepExecutor.apply(new Document());
+        result = workflowExecutor.execute(new Document());
+        result = workflowExecutor.execute(new Document());
         doReturn(Right(new Document())).when(fun3).apply(any());
-        result = stepExecutor.apply(new Document());
+        result = workflowExecutor.execute(new Document());
 
         assertThat(result.isRight()).isTrue();
         InOrder inOrder = inOrder(fun1, fun2, fun3);
@@ -108,22 +120,24 @@ class StepExecutorTest {
 
     @Test
     @SuppressWarnings("UnusedAssignment")
-    void whenFunctionReturnLeftAndThenRecover_recoveryOperationIsExecutedAfterEachFail() {
+    public void whenFunctionReturnLeftAndThenRecover_recoveryOperationIsExecutedAfterEachFail() {
         doReturn(Left(new Problem())).when(fun2).apply(any());
         doReturn(Left(new Problem())).when(fun3).apply(any());
 
-        final StepExecutor<Document, Problem> stepExecutor = new StepExecutor.Builder<Document, Problem>()
+        final Workflow<Document, Problem> workflow = new WorkflowBuilder<Document, Problem>()
                 .addStep(fun1)
                 .addStep(fun2)
                 .addStep(fun3, fun5)
                 .build();
 
-        Either<Problem, Document> result = stepExecutor.apply(new Document());
+        final WorkflowExecutor<Problem, Document> workflowExecutor = new WorkflowExecutor<>(workflow);
+
+        Either<Problem, Document> result = workflowExecutor.execute(new Document());
         doReturn(Right(new Document())).when(fun2).apply(any());
-        result = stepExecutor.apply(new Document());
-        result = stepExecutor.apply(new Document());
+        result = workflowExecutor.execute(new Document());
+        result = workflowExecutor.execute(new Document());
         doReturn(Right(new Document())).when(fun3).apply(any());
-        result = stepExecutor.apply(new Document());
+        result = workflowExecutor.execute(new Document());
 
         assertThat(result.isRight()).isTrue();
         InOrder inOrder = inOrder(fun1, fun2, fun3, fun5, fun3, fun5, fun3);
@@ -134,5 +148,32 @@ class StepExecutorTest {
         inOrder.verify(fun3, times(1)).apply(any());
         inOrder.verify(fun5, times(1)).apply(any());
         inOrder.verify(fun3, times(1)).apply(any());
+    }
+
+    @Test
+    public void whenExecutorSpecifiedForFunction_specifiedExecutorInvoked() {
+        final Workflow<Document, Problem> workflow = new WorkflowBuilder<Document, Problem>()
+                .addStep(fun1, executor)
+                .addStep(fun2)
+                .addStep(fun3)
+                .build();
+
+        final WorkflowExecutor<Problem, Document> workflowExecutor = new WorkflowExecutor<>(workflow);
+
+        Either<Problem, Document> result = workflowExecutor.execute(new Document());
+
+        assertThat(result.isRight()).isTrue();
+
+        InOrder inOrder = inOrder(executor, fun1, fun2, fun3);
+        inOrder.verify(executor).execute(any(), any(), any());
+        inOrder.verify(fun1).apply(any());
+        inOrder.verify(fun2).apply(any());
+        inOrder.verify(fun3).apply(any());
+    }
+
+    static class Problem {
+    }
+
+    static class Document {
     }
 }
