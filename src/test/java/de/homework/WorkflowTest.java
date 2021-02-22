@@ -11,7 +11,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 import java.util.function.Function;
 
@@ -169,6 +168,79 @@ class WorkflowTest {
         inOrder.verify(fun1).apply(any());
         inOrder.verify(fun2).apply(any());
         inOrder.verify(fun3).apply(any());
+    }
+
+    @Test
+    @SuppressWarnings("UnusedAssignment")
+    public void whenExecutorSpecifiedForFunctionAndFunctionsInitiallyReturnLeftAndThenRetry_duringRetrySkipsAllSuccessfullyExecutedSteps() {
+        doReturn(Left(new Problem())).when(fun2).apply(any());
+        doReturn(Left(new Problem())).when(fun3).apply(any());
+
+        final Workflow<Document, Problem> workflow = new WorkflowBuilder<Document, Problem>()
+                .addStep(fun1, executor)
+                .addStep(fun2)
+                .addStep(fun3)
+                .build();
+
+        final WorkflowExecutor<Problem, Document> workflowExecutor = new WorkflowExecutor<>(workflow);
+
+        Either<Problem, Document> result = workflowExecutor.execute(new Document());
+        doReturn(Right(new Document())).when(fun2).apply(any());
+        result = workflowExecutor.execute(new Document());
+        result = workflowExecutor.execute(new Document());
+        doReturn(Right(new Document())).when(fun3).apply(any());
+        result = workflowExecutor.execute(new Document());
+
+        assertThat(result.isRight()).isTrue();
+        InOrder inOrder = inOrder(fun1, fun2, fun3);
+        inOrder.verify(fun1, times(1)).apply(any());
+        inOrder.verify(fun2, times(2)).apply(any());
+        inOrder.verify(fun3, times(3)).apply(any());
+    }
+
+    @Test
+    public void whenExecutorSpecifiedForFunctionAndFunctionReturnLeft_recoveryOperationIsNotExecuted() {
+        doReturn(Left(new Problem())).when(fun1).apply(any());
+
+        final Workflow<Document, Problem> workflow = new WorkflowBuilder<Document, Problem>()
+                .addStep(fun1, executor)
+                .addStep(fun2)
+                .addStep(fun3, fun5)
+                .build();
+
+        final WorkflowExecutor<Problem, Document> workflowExecutor = new WorkflowExecutor<>(workflow);
+
+        Either<Problem, Document> result = workflowExecutor.execute(new Document());
+
+        assertThat(result.isLeft()).isTrue();
+        InOrder inOrder = inOrder(fun1, fun2);
+        inOrder.verify(fun1, times(1)).apply(any());
+        inOrder.verify(fun2, never()).apply(any());
+    }
+
+    @Test
+    @SuppressWarnings("UnusedAssignment")
+    public void whenExecutorSpecifiedForFunctionAndFunctionReturnLeftAndRecoveryOperationSpecified_recoveryOperationIsExecuted() {
+        doReturn(Left(new Problem())).when(fun1).apply(any());
+
+        final Workflow<Document, Problem> workflow = new WorkflowBuilder<Document, Problem>()
+                .addStep(fun1, executor, fun5)
+                .addStep(fun2)
+                .addStep(fun3)
+                .build();
+
+        final WorkflowExecutor<Problem, Document> workflowExecutor = new WorkflowExecutor<>(workflow);
+
+        Either<Problem, Document> result = workflowExecutor.execute(new Document());
+        doReturn(Right(new Document())).when(fun1).apply(any());
+        result = workflowExecutor.execute(new Document());
+
+        assertThat(result.isRight()).isTrue();
+        InOrder inOrder = inOrder(fun1, fun5, fun2, fun3);
+        inOrder.verify(fun1, times(1)).apply(any());
+        inOrder.verify(fun5, times(1)).apply(any());
+        inOrder.verify(fun2, times(1)).apply(any());
+        inOrder.verify(fun3, times(1)).apply(any());
     }
 
     static class Problem {

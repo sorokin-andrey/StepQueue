@@ -13,12 +13,6 @@ public class StepContext<T, P> {
 
     private final String functionName;
 
-    public StepContext(String functionName) {
-        this.output = Optional.empty();
-        this.timeTakenNanos = 0;
-        this.functionName = functionName;
-    }
-
     public StepContext(Either<P, T> output, int timeTakenNanos, String functionName) {
         this.output = Optional.of(output);
         this.timeTakenNanos = timeTakenNanos;
