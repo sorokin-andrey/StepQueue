@@ -14,10 +14,8 @@ public class AsyncStepExecutor<T, P> implements StepExecutor<T, P> {
 
         final Either<P, T> result = action.apply(input);
 
-        if (result.isLeft()) {
-            if (recoveryAction != null) {
-                recoveryAction.apply(result.getLeft());
-            }
+        if (result.isLeft() && recoveryAction != null) {
+            recoveryAction.apply(result.getLeft());
         }
 
         return result;
