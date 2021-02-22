@@ -18,8 +18,6 @@ public class DefaultStepExecutor<T, P> implements StepExecutor<T, P> {
             if (recoveryAction != null) {
                 recoveryAction.apply(result.getLeft());
             }
-
-            return result;
         }
 
         return result;
