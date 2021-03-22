@@ -37,7 +37,7 @@
         <assertj.version>3.16.1</assertj.version>
         <mockito.version>3.3.3</mockito.version>
         <pit.version>1.6.3</pit.version>
-        <pit.for.junit5.version>0.12</pit.for.junit5.version>
+        <pit.for.junit5.version>0.14</pit.for.junit5.version>
     </properties>
 
     <dependencies>
